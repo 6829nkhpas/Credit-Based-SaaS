@@ -1,8 +1,9 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import passport from 'passport';
 import { config } from './config/environment';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
@@ -59,7 +60,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Initialize Passport
 initializePassport();
-app.use(require('passport').initialize());
+app.use(passport.initialize());
 
 // Health check
 app.get('/health', (req, res) => {

@@ -6,7 +6,7 @@ export const errorHandler = (
   req: Request,
   res: Response,
   next: NextFunction
-) => {
+): void => {
   logger.error('Error occurred:', {
     error: error.message,
     stack: error.stack,
@@ -18,49 +18,55 @@ export const errorHandler = (
 
   // Validation errors
   if (error.name === 'ValidationError') {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Validation Error',
       message: error.message,
       details: error.details || [],
     });
+    return;
   }
 
   // JWT errors
   if (error.name === 'JsonWebTokenError') {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Authentication Error',
       message: 'Invalid token',
     });
+    return;
   }
 
   if (error.name === 'TokenExpiredError') {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Authentication Error',
       message: 'Token expired',
     });
+    return;
   }
 
   // Prisma errors
   if (error.code === 'P2002') {
-    return res.status(409).json({
+    res.status(409).json({
       error: 'Conflict',
       message: 'Resource already exists',
     });
+    return;
   }
 
   if (error.code === 'P2025') {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Not Found',
       message: 'Resource not found',
     });
+    return;
   }
 
   // Multer errors
   if (error.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({
+    res.status(413).json({
       error: 'File Too Large',
       message: 'File size exceeds limit',
     });
+    return;
   }
 
   // Default error
