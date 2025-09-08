@@ -29,7 +29,7 @@ const razorpay = new Razorpay({
 router.post('/create-intent', 
   authenticate,
   validate(paymentSchemas.createPaymentIntent),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.id;
       const { amount, credits, provider } = req.body;
@@ -82,9 +82,10 @@ router.post('/create-intent',
           provider: 'razorpay',
         });
       } else {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Invalid payment provider',
         });
+        return;
       }
     } catch (error) {
       next(error);
@@ -98,7 +99,7 @@ router.post('/create-intent',
 router.post('/confirm', 
   authenticate,
   validate(paymentSchemas.confirmPayment),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.id;
       const { paymentIntentId, provider } = req.body;
@@ -111,16 +112,18 @@ router.post('/confirm',
         const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
         
         if (paymentIntent.status !== 'succeeded') {
-          return res.status(400).json({
+          res.status(400).json({
             error: 'Payment not completed',
             status: paymentIntent.status,
           });
+          return;
         }
 
         if (paymentIntent.metadata.userId !== userId) {
-          return res.status(403).json({
+          res.status(403).json({
             error: 'Payment belongs to different user',
           });
+          return;
         }
 
         amount = paymentIntent.amount / 100; // Convert from cents

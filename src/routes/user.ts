@@ -113,13 +113,14 @@ router.post('/upload',
   authenticate, 
   upload.single('file'), 
   validate(userSchemas.uploadFile),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user!.id;
       const file = req.file;
 
       if (!file) {
-        return res.status(400).json({ error: 'No file provided' });
+        res.status(400).json({ error: 'No file provided' });
+        return;
       }
 
       // Deduct credits first

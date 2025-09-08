@@ -3,24 +3,6 @@ import { TokenService, JwtPayload } from '../utils/token';
 import { AuthenticationError, AuthorizationError } from '../utils/errors';
 import { prisma } from '../db/prisma';
 
-// Extend Request interface to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-        role: string;
-      };
-      apiKey?: {
-        id: string;
-        scope: string;
-        userId: string;
-      };
-    }
-  }
-}
-
 /**
  * JWT Authentication Middleware
  */
@@ -48,6 +30,7 @@ export const authenticate = async (
         id: true,
         email: true,
         role: true,
+        name: true,
         isActive: true,
       },
     });
@@ -61,6 +44,8 @@ export const authenticate = async (
       id: user.id,
       email: user.email,
       role: user.role,
+      name: user.name,
+      isActive: user.isActive,
     };
 
     next();
@@ -93,6 +78,7 @@ export const authenticateApiKey = async (
             id: true,
             email: true,
             role: true,
+            name: true,
             isActive: true,
           },
         },
@@ -125,6 +111,8 @@ export const authenticateApiKey = async (
       id: key.user.id,
       email: key.user.email,
       role: key.user.role,
+      name: key.user.name,
+      isActive: key.user.isActive,
     };
 
     next();

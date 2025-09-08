@@ -16,7 +16,7 @@ export const initializePassport = () => {
           clientSecret: config.GOOGLE_CLIENT_SECRET,
           callbackURL: '/api/auth/google/callback',
         },
-        async (accessToken, refreshToken, profile, done) => {
+        async (accessToken: string, refreshToken: string, profile: any, done: any) => {
           try {
             const email = profile.emails?.[0]?.value;
             if (!email) {
@@ -75,7 +75,7 @@ export const initializePassport = () => {
           clientSecret: config.GITHUB_CLIENT_SECRET,
           callbackURL: '/api/auth/github/callback',
         },
-        async (accessToken, refreshToken, profile, done) => {
+        async (accessToken: string, refreshToken: string, profile: any, done: any) => {
           try {
             const email = profile.emails?.[0]?.value;
             if (!email) {
