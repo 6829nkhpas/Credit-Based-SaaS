@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import ms from 'ms';
 import { config } from '../config/environment';
 import { prisma } from '../db/prisma';
 import { AuthenticationError } from './errors';
@@ -16,22 +17,20 @@ export class TokenService {
    * Generate access token
    */
   static generateAccessToken(payload: Omit<JwtPayload, 'type'>): string {
-    return jwt.sign(
-      { ...payload, type: 'access' },
-      config.JWT_ACCESS_SECRET,
-      { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
-    );
+    const tokenPayload = { ...payload, type: 'access' as const };
+    return jwt.sign(tokenPayload, config.JWT_ACCESS_SECRET, { 
+      expiresIn: '15m'
+    });
   }
 
   /**
    * Generate refresh token
    */
   static generateRefreshToken(payload: Omit<JwtPayload, 'type'>): string {
-    return jwt.sign(
-      { ...payload, type: 'refresh' },
-      config.JWT_REFRESH_SECRET,
-      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
-    );
+    const tokenPayload = { ...payload, type: 'refresh' as const };
+    return jwt.sign(tokenPayload, config.JWT_REFRESH_SECRET, { 
+      expiresIn: '7d'
+    });
   }
 
   /**
