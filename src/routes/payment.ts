@@ -135,25 +135,28 @@ router.post('/confirm',
         const order = await razorpay.orders.fetch(paymentIntentId);
         
         if (order.status !== 'paid') {
-          return res.status(400).json({
+          res.status(400).json({
             error: 'Payment not completed',
             status: order.status,
           });
+          return;
         }
 
         if (order.notes?.userId !== userId) {
-          return res.status(403).json({
+          res.status(403).json({
             error: 'Payment belongs to different user',
           });
+          return;
         }
 
-        amount = order.amount / 100; // Convert from paise
-        credits = parseInt(order.notes?.credits || '0', 10);
+        amount = Number(order.amount) / 100; // Convert from paise
+        credits = parseInt(String(order.notes?.credits || '0'), 10);
         paymentData = order;
       } else {
-        return res.status(400).json({
+        res.status(400).json({
           error: 'Invalid payment provider',
         });
+        return;
       }
 
       // Add credits to user
@@ -236,7 +239,7 @@ router.get('/history', authenticate, async (req: Request, res: Response, next: N
 /**
  * Stripe webhook handler
  */
-router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const sig = req.headers['stripe-signature'] as string;
     
@@ -245,7 +248,8 @@ router.post('/webhook/stripe', express.raw({ type: 'application/json' }), async 
       event = stripe.webhooks.constructEvent(req.body, sig, config.STRIPE_WEBHOOK_SECRET);
     } catch (err) {
       logger.error('Stripe webhook signature verification failed', { error: err });
-      return res.status(400).send(`Webhook Error: ${(err as Error).message}`);
+      res.status(400).send(`Webhook Error: ${(err as Error).message}`);
+      return;
     }
 
     if (event.type === 'payment_intent.succeeded') {

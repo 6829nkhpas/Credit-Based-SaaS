@@ -17,7 +17,7 @@ export class TokenService {
    */
   static generateAccessToken(payload: Omit<JwtPayload, 'type'>): string {
     return jwt.sign(
-      { ...payload, type: 'access' } as object,
+      { ...payload, type: 'access' },
       config.JWT_ACCESS_SECRET,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
@@ -28,7 +28,7 @@ export class TokenService {
    */
   static generateRefreshToken(payload: Omit<JwtPayload, 'type'>): string {
     return jwt.sign(
-      { ...payload, type: 'refresh' } as object,
+      { ...payload, type: 'refresh' },
       config.JWT_REFRESH_SECRET,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
