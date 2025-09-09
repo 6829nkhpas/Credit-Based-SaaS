@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth';
 import { validate, userSchemas } from '../middleware/validation';
 import { CreditService, ActionType } from '../services/credit';
 import { S3Service } from '../services/s3';
-import { prisma } from '../db/prisma';
+import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
 import { NotFoundError, InsufficientCreditsError } from '../utils/errors';
 import { logger } from '../utils/logger';
 

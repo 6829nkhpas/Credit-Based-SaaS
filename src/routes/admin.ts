@@ -3,7 +3,7 @@ import { authenticate, authorize } from '../middleware/auth';
 import { validate, adminSchemas } from '../middleware/validation';
 import { CreditService } from '../services/credit';
 import { TokenService } from '../utils/token';
-import { prisma } from '../db/prisma';
+import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
 import { NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
 

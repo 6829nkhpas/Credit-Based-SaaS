@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { config } from './environment';
-import { prisma } from '../db/prisma';
+import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
 import { logger } from '../utils/logger';
 
 export const initializePassport = () => {

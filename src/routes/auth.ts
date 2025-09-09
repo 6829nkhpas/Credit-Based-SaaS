@@ -62,10 +62,13 @@ router.post('/signup', validate(authSchemas.signup), async (req: Request, res: R
 
     res.status(201).json({
       message: 'User created successfully',
-      user,
-      tokens: {
-        accessToken,
-        refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: `${user.firstName || ''}`.trim(),
+        role: user.role,
+        credits: user.credits,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -98,26 +101,23 @@ router.post('/login', validate(authSchemas.login), async (req: Request, res: Res
     }
 
     // Update last login
-    await User.findByIdAndUpdate({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    await User.findByIdAndUpdate(user.id, { lastLoginAt: new Date() });
 
     // Generate tokens
     const accessToken = TokenService.generateAccessToken({
-      userId: user.id,
+      userId: user.id.toString(),
       email: user.email,
       role: user.role,
     });
 
     const refreshToken = TokenService.generateRefreshToken({
-      userId: user.id,
+      userId: user.id.toString(),
       email: user.email,
       role: user.role,
     });
 
     // Store refresh token
-    await TokenService.storeRefreshToken(user.id, refreshToken);
+    await TokenService.storeRefreshToken(user.id.toString(), refreshToken);
 
     logger.info('User logged in successfully', { userId: user.id, email: user.email });
 
@@ -126,7 +126,7 @@ router.post('/login', validate(authSchemas.login), async (req: Request, res: Res
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
+        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
         role: user.role,
         credits: user.credits,
       },

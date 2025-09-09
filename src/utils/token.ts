@@ -89,7 +89,7 @@ export class TokenService {
    * Revoke refresh token
    */
   static async revokeRefreshToken(token: string): Promise<void> {
-    await prisma.refreshToken.updateMany({
+    await RefreshToken.updateMany({
       where: { token },
       data: { revoked: true },
     });
@@ -99,7 +99,7 @@ export class TokenService {
    * Revoke all user tokens
    */
   static async revokeAllUserTokens(userId: string): Promise<void> {
-    await prisma.refreshToken.updateMany({
+    await RefreshToken.updateMany({
       where: { userId },
       data: { revoked: true },
     });
@@ -109,7 +109,7 @@ export class TokenService {
    * Check if refresh token is valid
    */
   static async isRefreshTokenValid(token: string): Promise<boolean> {
-    const storedToken = await prisma.refreshToken.findUnique({
+    const storedToken = await RefreshToken.findOne({
       where: { token },
     });
 
@@ -131,7 +131,7 @@ export class TokenService {
    * Clean expired tokens
    */
   static async cleanExpiredTokens(): Promise<void> {
-    await prisma.refreshToken.deleteMany({
+    await RefreshToken.deleteMany({
       where: {
         OR: [
           { expiresAt: { lt: new Date() } },

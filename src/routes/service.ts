@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateApiKey, authorizeApiKeyScope } from '../middleware/auth';
 import { validate, serviceSchemas } from '../middleware/validation';
 import { CreditService, ActionType } from '../services/credit';
-import { prisma } from '../db/prisma';
+import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
 import { NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
 

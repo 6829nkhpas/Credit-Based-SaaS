@@ -5,7 +5,7 @@ import Razorpay from 'razorpay';
 import { authenticate } from '../middleware/auth';
 import { validate, paymentSchemas } from '../middleware/validation';
 import { CreditService } from '../services/credit';
-import { prisma } from '../db/prisma';
+import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
 import { config } from '../config/environment';
 import { logger } from '../utils/logger';
 import { NotFoundError } from '../utils/errors';

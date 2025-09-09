@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { TokenService, JwtPayload } from '../utils/token';
 import { AuthenticationError, AuthorizationError } from '../utils/errors';
-import { prisma } from '../db/prisma';
+import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
 
 /**
  * JWT Authentication Middleware
