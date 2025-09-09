@@ -1,25 +1,34 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { database } from '../db/connection';
+import { 
+  User, 
+  RefreshToken, 
+  ApiKey, 
+  AuditLog, 
+  File, 
+  Report, 
+  Payment, 
+  BlockchainTransaction 
+} from '../models';
 
 beforeAll(async () => {
-  // Setup test database or use test environment
+  // Connect to test database
+  await database.connect();
 });
 
 afterAll(async () => {
-  await prisma.$disconnect();
+  await database.disconnect();
 });
 
 beforeEach(async () => {
   // Clean up database before each test
-  await prisma.blockchainTransaction.deleteMany();
-  await prisma.auditLog.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.report.deleteMany();
-  await prisma.file.deleteMany();
-  await prisma.apiKey.deleteMany();
-  await prisma.refreshToken.deleteMany();
-  await prisma.user.deleteMany();
+  await BlockchainTransaction.deleteMany({});
+  await AuditLog.deleteMany({});
+  await Payment.deleteMany({});
+  await Report.deleteMany({});
+  await File.deleteMany({});
+  await ApiKey.deleteMany({});
+  await RefreshToken.deleteMany({});
+  await User.deleteMany({});
 });
 
-export { prisma };
+export { database };

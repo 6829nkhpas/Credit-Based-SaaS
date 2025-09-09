@@ -80,12 +80,13 @@ router.get('/credits/history', authenticate, async (req: Request, res: Response,
     const history = await creditService.getCreditHistory(userId, limit, offset);
     
     res.json({
-      history,
+      history: history.history,
       pagination: {
         limit,
         offset,
-        total: history.length,
+        total: history.total,
       },
+      summary: history.summary,
     });
   } catch (error) {
     next(error);

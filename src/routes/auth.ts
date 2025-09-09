@@ -17,9 +17,7 @@ router.post('/signup', validate(authSchemas.signup), async (req: Request, res: R
     const { email, password, name } = req.body;
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       throw new ConflictError('User with this email already exists');
@@ -35,22 +33,14 @@ router.post('/signup', validate(authSchemas.signup), async (req: Request, res: R
     const hashedPassword = await PasswordService.hashPassword(password);
 
     // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        credits: 50, // Initial credits
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        credits: true,
-        createdAt: true,
-      },
+    const user = new User({
+      email,
+      password: hashedPassword,
+      firstName: name || '',
+      credits: 50, // Initial credits
     });
+
+    await user.save();
 
     // Generate tokens
     const accessToken = TokenService.generateAccessToken({
@@ -91,9 +81,7 @@ router.post('/login', validate(authSchemas.login), async (req: Request, res: Res
     const { email, password } = req.body;
 
     // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user = await User.findOne({ email });
 
     if (!user || !user.password) {
       throw new AuthenticationError('Invalid email or password');
@@ -110,7 +98,7 @@ router.post('/login', validate(authSchemas.login), async (req: Request, res: Res
     }
 
     // Update last login
-    await prisma.user.update({
+    await User.findByIdAndUpdate({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
@@ -169,7 +157,7 @@ router.post('/refresh', validate(authSchemas.refreshToken), async (req: Request,
     }
 
     // Get user
-    const user = await prisma.user.findUnique({
+    const user = await User.findOne({
       where: { id: payload.userId },
       select: {
         id: true,
