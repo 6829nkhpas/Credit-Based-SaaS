@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User, RefreshToken } from '../models';
 import { authenticate } from '../middleware/auth';
-import { validateRequest } from '../middleware/validation';
 import { auditService } from '../services/audit';
 import { AppError } from '../utils/errors';
 import { config } from '../config/environment';
@@ -35,13 +34,13 @@ router.post('/register', async (req: Request, res: Response) => {
     // Generate tokens
     const accessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET,
+      config.JWT_ACCESS_SECRET!,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 
     const refreshToken = jwt.sign(
       { userId: user._id },
-      config.JWT_REFRESH_SECRET,
+      config.JWT_REFRESH_SECRET!,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
@@ -96,13 +95,13 @@ router.post('/login', async (req: Request, res: Response) => {
     // Generate tokens
     const accessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET,
+      config.JWT_ACCESS_SECRET!,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 
     const refreshToken = jwt.sign(
       { userId: user._id },
-      config.JWT_REFRESH_SECRET,
+      config.JWT_REFRESH_SECRET!,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
@@ -117,7 +116,7 @@ router.post('/login', async (req: Request, res: Response) => {
     await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
 
     // Log audit
-    await auditService.log(user._id.toString(), 'login', {}, req.ip);
+    await auditService.log(user._id!.toString(), 'login', {}, req.ip);
 
     res.json({
       success: true,
@@ -148,7 +147,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     }
 
     // Verify refresh token
-    const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as any;
+    const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET!) as any;
     
     // Find stored refresh token
     const storedToken = await RefreshToken.findOne({
@@ -170,7 +169,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     // Generate new access token
     const newAccessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET,
+      config.JWT_ACCESS_SECRET!,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 

@@ -9,11 +9,11 @@ import { logger } from './utils/logger';
 import { database } from './db/connection';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
-import { authRoutes } from './routes/auth';
-import { userRoutes } from './routes/user';
-import { adminRoutes } from './routes/admin';
-import { serviceRoutes } from './routes/service';
-import { paymentRoutes } from './routes/payment';
+import authRoutes from './routes/auth';
+import userRoutes from './routes/user';
+import adminRoutes from './routes/admin';
+import serviceRoutes from './routes/service';
+import paymentRoutes from './routes/payment';
 import { initializePassport } from './config/passport';
 
 const app = express();

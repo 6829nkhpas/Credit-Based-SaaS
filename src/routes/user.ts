@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { User, File, Report } from '../models';
 import { authenticate } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
-import { creditService } from '../services/credit';
+import { creditService, ActionType } from '../services/credit';
 import { auditService } from '../services/audit';
 import { AppError } from '../utils/errors';
 
@@ -52,7 +52,7 @@ router.post('/upload', authenticate, async (req: Request, res: Response) => {
     // Create file record
     const file = await File.create({
       userId,
-      filename,
+      fileName: filename,
       originalName,
       mimeType,
       size,
@@ -60,9 +60,9 @@ router.post('/upload', authenticate, async (req: Request, res: Response) => {
     });
 
     // Deduct credit
-    const creditResult = await creditService.deductCredits(userId, 1, 'file_upload', {
-      fileId: file._id.toString(),
-      filename: file.filename,
+    const creditResult = await creditService.deductCredits(userId, ActionType.UPLOAD_FILE, {
+      fileId: file._id!.toString(),
+      filename: file.fileName,
       size: file.size,
     });
 
@@ -71,8 +71,8 @@ router.post('/upload', authenticate, async (req: Request, res: Response) => {
       userId,
       'file_upload',
       {
-        fileId: file._id.toString(),
-        filename: file.filename,
+        fileId: file._id!.toString(),
+        filename: file.fileName,
         size: file.size,
       },
       req.ip
@@ -82,10 +82,10 @@ router.post('/upload', authenticate, async (req: Request, res: Response) => {
       success: true,
       data: {
         id: file._id,
-        filename: file.filename,
+        filename: file.fileName,
         originalName: file.originalName,
         size: file.size,
-        uploadedAt: file.uploadedAt,
+        uploadedAt: file.createdAt,
         creditsRemaining: creditResult.remainingCredits,
       },
     });
@@ -107,7 +107,7 @@ router.post('/generate-report', authenticate, async (req: Request, res: Response
     }
 
     // Deduct credits first
-    const creditResult = await creditService.deductCredits(userId, 5, 'report_generation', {
+    const creditResult = await creditService.deductCredits(userId, ActionType.GENERATE_REPORT, {
       title,
       description,
       fileId,
@@ -129,9 +129,9 @@ router.post('/generate-report', authenticate, async (req: Request, res: Response
     const report = await Report.create({
       userId,
       title,
-      description,
-      fileId,
-      summary: 'This is a generated report based on your data.',
+      type: 'USAGE',
+      format: 'JSON',
+      data: { description, fileId },
     });
 
     res.json({
@@ -139,9 +139,8 @@ router.post('/generate-report', authenticate, async (req: Request, res: Response
       data: {
         id: report._id,
         title: report.title,
-        description: report.description,
+        type: report.type,
         generatedAt: report.generatedAt,
-        summary: report.summary,
         creditsRemaining: creditResult.remainingCredits,
       },
     });
@@ -163,11 +162,16 @@ router.post('/purchase-credits', authenticate, async (req: Request, res: Respons
       throw new AppError('Payment failed', 400);
     }
 
-    // Add credits
-    const creditResult = await creditService.addCredits(userId, amount, 'purchase', {
-      paymentMethod,
-      amount,
-    });
+    // Add credits (fix the method signature)
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $inc: { credits: amount } },
+      { new: true }
+    );
+
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
 
     // Log audit
     await auditService.log(
@@ -184,7 +188,7 @@ router.post('/purchase-credits', authenticate, async (req: Request, res: Respons
       success: true,
       data: {
         creditsAdded: amount,
-        creditsRemaining: creditResult.remainingCredits,
+        creditsRemaining: user.credits,
       },
     });
   } catch (error) {
@@ -201,10 +205,10 @@ router.get('/files', authenticate, async (req: Request, res: Response) => {
     const offset = (page - 1) * limit;
 
     const files = await File.find({ userId })
-      .sort({ uploadedAt: -1 })
+      .sort({ createdAt: -1 })
       .limit(limit)
       .skip(offset)
-      .select('_id filename originalName mimeType size uploadedAt');
+      .select('_id fileName originalName mimeType size createdAt');
 
     const total = await File.countDocuments({ userId });
 
@@ -234,10 +238,10 @@ router.get('/reports', authenticate, async (req: Request, res: Response) => {
     const offset = (page - 1) * limit;
 
     const reports = await Report.find({ userId })
-      .sort({ generatedAt: -1 })
+      .sort({ createdAt: -1 })
       .limit(limit)
       .skip(offset)
-      .select('_id title description generatedAt fileId');
+      .select('_id title type format createdAt');
 
     const total = await Report.countDocuments({ userId });
 

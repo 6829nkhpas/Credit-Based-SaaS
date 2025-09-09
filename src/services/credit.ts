@@ -428,3 +428,6 @@ export class CreditService {
     return this.getUsageStatistics(userId);
   }
 }
+
+// Export an instance for use throughout the app
+export const creditService = new CreditService();
