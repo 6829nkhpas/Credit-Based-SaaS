@@ -1,9 +1,3 @@
-#!/bin/bash
-
-echo "🔧 Creating final MongoDB app with working build..."
-
-# Create a simple working express app structure first
-cat > src/app-simple.ts << 'EOF'
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -115,43 +109,3 @@ app.post('/files/test', async (req, res) => {
 });
 
 export default app;
-EOF
-
-# Create a working server file
-cat > src/server-simple.ts << 'EOF'
-import app from './app-simple';
-import { connectDB } from './db/connection';
-import { logger } from './utils/logger';
-
-const PORT = process.env.PORT || 3000;
-
-async function startServer() {
-  try {
-    // Connect to MongoDB
-    await connectDB();
-    logger.info('✅ MongoDB connected successfully');
-
-    // Start server
-    app.listen(PORT, () => {
-      logger.info(`🚀 Server running on port ${PORT}`);
-      logger.info('🎉 MongoDB SaaS Credit System is ready!');
-      console.log(`
-✅ MongoDB Credit SaaS Server Running!
-📍 Port: ${PORT}
-🔍 Health: http://localhost:${PORT}/health
-🧪 Test DB: http://localhost:${PORT}/test-db
-💳 Test Credits: POST http://localhost:${PORT}/credits/test
-📁 Test Files: POST http://localhost:${PORT}/files/test
-      `);
-    });
-  } catch (error) {
-    logger.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-startServer();
-EOF
-
-echo "✅ Created simplified MongoDB app!"
-echo "🔧 Building the working version..."

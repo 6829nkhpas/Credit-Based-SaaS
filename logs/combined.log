@@ -1,0 +1,14 @@
+{"host":"localhost","level":"info","message":"Successfully connected to MongoDB","name":"credit_saas","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:21.699Z"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:21.701Z"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:21.704Z"}
+{"level":"info","message":"🎉 MongoDB SaaS Credit System is ready!","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:21.704Z"}
+{"level":"info","message":"Received shutdown signal. Closing MongoDB connection...","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:42.131Z"}
+{"host":"localhost","level":"info","message":"Successfully connected to MongoDB","name":"credit_saas","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:51.437Z"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:51.439Z"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:51.442Z"}
+{"level":"info","message":"🎉 MongoDB SaaS Credit System is ready!","service":"credit-saas-backend","timestamp":"2025-09-09T10:18:51.442Z"}
+{"level":"info","message":"Received shutdown signal. Closing MongoDB connection...","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:09.892Z"}
+{"host":"localhost","level":"info","message":"Successfully connected to MongoDB","name":"credit_saas","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.539Z"}
+{"level":"info","message":"✅ MongoDB connected successfully","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.542Z"}
+{"level":"info","message":"🚀 Server running on port 3000","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.544Z"}
+{"level":"info","message":"🎉 MongoDB SaaS Credit System is ready!","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.545Z"}
