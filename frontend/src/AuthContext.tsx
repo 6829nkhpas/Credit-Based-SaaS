@@ -1,68 +1,64 @@
-// Authentication context for managing user state
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { userAPI } from './api';
+import { apiService } from './api-full';
 
 interface User {
   id: string;
   email: string;
   firstName: string;
-  credits: number;
-  role: string;
-  isActive: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, firstName: string) => Promise<boolean>;
   logout: () => void;
-  loading: boolean;
-  refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored token on app load
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    checkAuthStatus();
   }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        apiService.setAuthToken(token);
+        const userData = await apiService.getUserProfile();
+        setUser({
+          id: userData.id,
+          email: userData.email,
+          firstName: userData.firstName,
+        });
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('authToken');
+      apiService.setAuthToken(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      setLoading(true);
-      const response = await userAPI.login(email, password);
+      setIsLoading(true);
+      const response = await apiService.login(email, password);
       
-      if (response.success) {
-        const { accessToken, user: userData } = response.data;
-        setToken(accessToken);
-        setUser(userData);
-        localStorage.setItem('token', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+      if (response.token && response.user) {
+        localStorage.setItem('authToken', response.token);
+        apiService.setAuthToken(response.token);
+        setUser({
+          id: response.user.id,
+          email: response.user.email,
+          firstName: response.user.firstName,
+        });
         return true;
       }
       return false;
@@ -70,21 +66,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Login failed:', error);
       return false;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const register = async (email: string, password: string, firstName: string): Promise<boolean> => {
     try {
-      setLoading(true);
-      const response = await userAPI.register(email, password, firstName);
+      setIsLoading(true);
+      const response = await apiService.register(email, password, firstName);
       
-      if (response.success) {
-        const { accessToken, user: userData } = response.data;
-        setToken(accessToken);
-        setUser(userData);
-        localStorage.setItem('token', accessToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+      if (response.token && response.user) {
+        localStorage.setItem('authToken', response.token);
+        apiService.setAuthToken(response.token);
+        setUser({
+          id: response.user.id,
+          email: response.user.email,
+          firstName: response.user.firstName,
+        });
         return true;
       }
       return false;
@@ -92,40 +90,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Registration failed:', error);
       return false;
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const logout = () => {
+    localStorage.removeItem('authToken');
+    apiService.setAuthToken(null);
     setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
   };
 
-  const refreshUser = async () => {
-    if (token) {
-      try {
-        const response = await userAPI.getProfile(token);
-        if (response.success) {
-          setUser(response.data);
-          localStorage.setItem('user', JSON.stringify(response.data));
-        }
-      } catch (error) {
-        console.error('Failed to refresh user:', error);
-      }
-    }
-  };
+  return (
+    <AuthContext.Provider value={{
+      user,
+      isLoading,
+      login,
+      register,
+      logout,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
-  const value: AuthContextType = {
-    user,
-    token,
-    login,
-    register,
-    logout,
-    loading,
-    refreshUser,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

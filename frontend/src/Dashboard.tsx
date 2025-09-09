@@ -14,7 +14,7 @@ import {
   DollarSign,
   Activity
 } from 'lucide-react';
-import { api } from './api-full';
+import { apiService } from './api-full';
 
 interface UserProfile {
   id: string;
@@ -59,9 +59,9 @@ export const Dashboard: React.FC = () => {
     try {
       setIsLoading(true);
       const [profileData, filesData, reportsData] = await Promise.all([
-        api.getUserProfile(),
-        api.getUserFiles(),
-        api.getUserReports()
+        apiService.getUserProfile(),
+        apiService.getUserFiles(),
+        apiService.getUserReports()
       ]);
       
       setProfile(profileData);
@@ -79,7 +79,7 @@ export const Dashboard: React.FC = () => {
 
     try {
       setIsUploading(true);
-      await api.uploadFile(uploadFile);
+      await apiService.uploadFile(uploadFile);
       setUploadFile(null);
       await loadDashboardData(); // Refresh data
     } catch (error) {
@@ -92,7 +92,7 @@ export const Dashboard: React.FC = () => {
 
   const handleBuyCredits = async (amount: number) => {
     try {
-      const session = await api.createPaymentSession(amount);
+      const session = await apiService.createPaymentSession(amount);
       // In a real app, redirect to Stripe checkout
       alert(`Payment session created for ${amount} credits. In production, this would redirect to Stripe.`);
     } catch (error) {

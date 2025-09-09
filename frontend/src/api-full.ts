@@ -198,3 +198,91 @@ export const userAPI = {
     return response.data;
   },
 };
+
+// Simple API class for the frontend components
+class APIService {
+  private authToken: string | null = null;
+  private baseURL = 'http://localhost:3000';
+
+  setAuthToken(token: string | null) {
+    this.authToken = token;
+  }
+
+  private async request(endpoint: string, options: RequestInit = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+
+    // Special handling for FormData
+    if (options.body instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Request failed' }));
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  // Authentication
+  async login(email: string, password: string) {
+    return this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async register(email: string, password: string, firstName: string) {
+    return this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, firstName }),
+    });
+  }
+
+  // User profile
+  async getUserProfile() {
+    return this.request('/user/profile');
+  }
+
+  // Files
+  async getUserFiles() {
+    return this.request('/user/files');
+  }
+
+  async uploadFile(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.request('/user/files/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  // Reports
+  async getUserReports() {
+    return this.request('/user/reports');
+  }
+
+  // Payments
+  async createPaymentSession(credits: number) {
+    return this.request('/payments/create-session', {
+      method: 'POST',
+      body: JSON.stringify({ credits }),
+    });
+  }
+}
+
+export const apiService = new APIService();
