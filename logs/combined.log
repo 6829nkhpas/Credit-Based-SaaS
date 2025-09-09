@@ -12,3 +12,4 @@
 {"level":"info","message":"✅ MongoDB connected successfully","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.542Z"}
 {"level":"info","message":"🚀 Server running on port 3000","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.544Z"}
 {"level":"info","message":"🎉 MongoDB SaaS Credit System is ready!","service":"credit-saas-backend","timestamp":"2025-09-09T10:19:25.545Z"}
+{"host":"localhost","level":"info","message":"Successfully connected to MongoDB","name":"credit_saas","service":"credit-saas-backend","timestamp":"2025-09-09T10:38:08.503Z"}
