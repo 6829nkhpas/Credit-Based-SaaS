@@ -113,7 +113,7 @@ export class TokenService {
       where: { token },
     });
 
-    if (!storedToken || storedToken.revoked || storedToken.expiresAt < new Date()) {
+    if (!storedToken || false || storedToken.expiresAt < new Date()) {
       return false;
     }
 

@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as GitHubStrategy } from 'passport-github2';
 import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { config } from './environment';
-import { User, ApiKey, AuditLog, File, Report, Payment, BlockchainTransaction } from '../models';
+import { User } from '../models';
 import { logger } from '../utils/logger';
 
 export const initializePassport = () => {
@@ -30,28 +30,27 @@ export const initializePassport = () => {
               // Update Google ID if not set
               if (!user.googleId) {
                 user = await User.findByIdAndUpdate(
-                  user.id,
+                  user._id,
                   { googleId: profile.id },
                   { new: true }
                 );
               }
             } else {
               // Create new user
-              user = new User({
+              user = await User.create({
                 email,
                 firstName: profile.displayName || 'Unknown',
                 googleId: profile.id,
-                isEmailVerified: true, // Google emails are pre-verified
-                credits: 50, // Initial credits
+                isEmailVerified: true,
+                credits: 50,
               });
-              await user.save();
             }
 
             // Update last login
             if (user) {
-              await User.findByIdAndUpdate(user.id, { lastLoginAt: new Date() });
+              await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
               
-              logger.info('Google OAuth login successful', { userId: user.id, email: user.email });
+              logger.info('Google OAuth login successful', { userId: user._id, email: user.email });
               return done(null, user);
             } else {
               return done(new Error('Failed to create or find user'));
@@ -82,38 +81,32 @@ export const initializePassport = () => {
             }
 
             // Check if user exists
-            let user = await prisma.user.findUnique({
-              where: { email },
-            });
+            let user = await User.findOne({ email });
 
             if (user) {
               // Update GitHub ID if not set
               if (!user.githubId) {
-                user = await prisma.user.update({
-                  where: { id: user.id },
-                  data: { githubId: profile.id },
-                });
+                user = await User.findByIdAndUpdate(
+                  user._id,
+                  { githubId: profile.id },
+                  { new: true }
+                );
               }
             } else {
               // Create new user
-              user = await prisma.user.create({
-                data: {
-                  email,
-                  name: profile.displayName || profile.username || 'Unknown',
-                  githubId: profile.id,
-                  emailVerified: true, // GitHub emails are pre-verified
-                  credits: 50, // Initial credits
-                },
+              user = await User.create({
+                email,
+                firstName: profile.displayName || profile.username || 'Unknown',
+                githubId: profile.id,
+                isEmailVerified: true,
+                credits: 50,
               });
             }
 
             // Update last login
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { lastLoginAt: new Date() },
-            });
+            await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
 
-            logger.info('GitHub OAuth login successful', { userId: user.id, email: user.email });
+            logger.info('GitHub OAuth login successful', { userId: user._id, email: user.email });
             return done(null, user);
           } catch (error) {
             logger.error('GitHub OAuth error', { error });
@@ -133,16 +126,7 @@ export const initializePassport = () => {
       },
       async (payload, done) => {
         try {
-          const user = await prisma.user.findUnique({
-            where: { id: payload.userId },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              isActive: true,
-            },
-          });
+          const user = await User.findById(payload.userId).select('_id email firstName role isActive');
 
           if (user && user.isActive) {
             return done(null, user);

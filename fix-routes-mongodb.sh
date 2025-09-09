@@ -1,3 +1,67 @@
+#!/bin/bash
+
+echo "🔧 Fixing MongoDB syntax in route files..."
+
+# Create backup
+cp -r src/routes src/routes.backup
+
+# Fix Prisma-style queries to MongoDB queries
+find src/routes -name "*.ts" -exec sed -i '
+# Fix findUnique to findOne
+s/\.findUnique(/\.findOne(/g
+
+# Fix Prisma include syntax to populate
+s/include: {/populate: {/g
+
+# Fix Prisma select syntax
+s/select: {/select: "/g
+s/select: "/select: "\&/g
+
+# Fix where clause syntax
+s/{ id: /{ _id: /g
+
+# Fix create syntax
+s/\.create({/\.create(/g
+s/data: {//g
+
+# Fix update syntax
+s/\.update({/\.findByIdAndUpdate(/g
+s/\.findByIdAndUpdate({ { /\.findByIdAndUpdate(/g
+
+# Fix delete syntax
+s/\.delete({/\.findByIdAndDelete(/g
+
+# Fix orderBy to sort
+s/orderBy: { /sort: { /g
+s/orderBy:/sort:/g
+
+# Fix take/skip to limit/skip
+s/take: /limit: /g
+
+# Fix count
+s/\.count({/\.countDocuments(/g
+
+# Fix array syntax issues
+s/countDocuments({ {/countDocuments({/g
+
+# Clean up extra brackets and commas
+s/{ {/{/g
+s/} }/}/g
+s/},$/}/g
+
+# Fix common Prisma patterns
+s/gt:/\$gt:/g
+s/gte:/\$gte:/g
+s/lt:/\$lt:/g
+s/lte:/\$lte:/g
+s/contains:/\$regex:/g
+
+' {} \;
+
+echo "✅ MongoDB route syntax updated!"
+
+# Fix specific authentication middleware issues
+cat > src/middleware/auth.ts << 'EOF'
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { User, ApiKey } from '../models';
@@ -173,3 +237,8 @@ export const authorizeAdmin = authorize(['admin']);
  * User or Admin authorization middleware
  */
 export const authorizeUser = authorize(['user', 'admin']);
+EOF
+
+echo "✅ Authentication middleware fixed!"
+
+echo "🎉 MongoDB route migration completed!"

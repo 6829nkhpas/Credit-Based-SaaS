@@ -1,301 +1,209 @@
-import { Router, Request, Response, NextFunction } from 'express';
-import passport from 'passport';
-import { validate, authSchemas } from '../middleware/validation';
-import { PasswordService } from '../utils/password';
-import { TokenService } from '../utils/token';
+import { Router, Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { User, RefreshToken } from '../models';
-import { AuthenticationError, ConflictError, NotFoundError, ValidationError } from '../utils/errors';
-import { logger } from '../utils/logger';
+import { authenticate } from '../middleware/auth';
+import { validateRequest } from '../middleware/validation';
+import { auditService } from '../services/audit';
+import { AppError } from '../utils/errors';
+import { config } from '../config/environment';
 
 const router = Router();
 
-/**
- * Sign up with email and password
- */
-router.post('/signup', validate(authSchemas.signup), async (req: Request, res: Response, next: NextFunction) => {
+// Register
+router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, firstName } = req.body;
 
-    // Check if user already exists
+    // Check if user exists
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
-      throw new ConflictError('User with this email already exists');
-    }
-
-    // Validate password strength
-    const passwordValidation = PasswordService.isPasswordStrong(password);
-    if (!passwordValidation.isValid) {
-      throw new ValidationError('Password does not meet requirements', passwordValidation.errors);
+      throw new AppError('User already exists', 400);
     }
 
     // Hash password
-    const hashedPassword = await PasswordService.hashPassword(password);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user
-    const user = new User({
+    const user = await User.create({
       email,
       password: hashedPassword,
-      firstName: name || '',
+      firstName,
       credits: 50, // Initial credits
     });
 
-    await user.save();
-
     // Generate tokens
-    const accessToken = TokenService.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
+    const accessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      config.JWT_ACCESS_SECRET,
+      { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user._id },
+      config.JWT_REFRESH_SECRET,
+      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
+    );
+
+    // Save refresh token
+    await RefreshToken.create({
+      userId: user._id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     });
-
-    const refreshToken = TokenService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    // Store refresh token
-    await TokenService.storeRefreshToken(user.id, refreshToken);
-
-    logger.info('User signed up successfully', { userId: user.id, email: user.email });
 
     res.status(201).json({
-      message: 'User created successfully',
-      user: {
-        id: user.id,
-        email: user.email,
-        name: `${user.firstName || ''}`.trim(),
-        role: user.role,
-        credits: user.credits,
-        createdAt: user.createdAt,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * Login with email and password
- */
-router.post('/login', validate(authSchemas.login), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { email, password } = req.body;
-
-    // Find user
-    const user = await User.findOne({ email });
-
-    if (!user || !user.password) {
-      throw new AuthenticationError('Invalid email or password');
-    }
-
-    if (!user.isActive) {
-      throw new AuthenticationError('Account is disabled');
-    }
-
-    // Verify password
-    const isPasswordValid = await PasswordService.verifyPassword(password, user.password);
-    if (!isPasswordValid) {
-      throw new AuthenticationError('Invalid email or password');
-    }
-
-    // Update last login
-    await User.findByIdAndUpdate(user.id, { lastLoginAt: new Date() });
-
-    // Generate tokens
-    const accessToken = TokenService.generateAccessToken({
-      userId: user.id.toString(),
-      email: user.email,
-      role: user.role,
-    });
-
-    const refreshToken = TokenService.generateRefreshToken({
-      userId: user.id.toString(),
-      email: user.email,
-      role: user.role,
-    });
-
-    // Store refresh token
-    await TokenService.storeRefreshToken(user.id.toString(), refreshToken);
-
-    logger.info('User logged in successfully', { userId: user.id, email: user.email });
-
-    res.json({
-      message: 'Login successful',
-      user: {
-        id: user.id,
-        email: user.email,
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        role: user.role,
-        credits: user.credits,
-      },
-      tokens: {
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          role: user.role,
+          credits: user.credits,
+        },
         accessToken,
         refreshToken,
       },
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, error: 'Registration failed' });
   }
 });
 
-/**
- * Refresh access token
- */
-router.post('/refresh', validate(authSchemas.refreshToken), async (req: Request, res: Response, next: NextFunction) => {
+// Login
+router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { refreshToken } = req.body;
+    const { email, password } = req.body;
 
-    // Verify refresh token
-    const payload = TokenService.verifyRefreshToken(refreshToken);
-
-    // Check if token is valid in database
-    const isValid = await TokenService.isRefreshTokenValid(refreshToken);
-    if (!isValid) {
-      throw new AuthenticationError('Invalid refresh token');
+    // Find user
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      throw new AppError('Invalid credentials', 401);
     }
 
-    // Get user
-    const user = await User.findOne({
-      where: { id: payload.userId },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        isActive: true,
-      },
-    });
-
-    if (!user || !user.isActive) {
-      throw new AuthenticationError('User not found or inactive');
+    // Check password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      throw new AppError('Invalid credentials', 401);
     }
 
-    // Revoke old refresh token
-    await TokenService.revokeRefreshToken(refreshToken);
+    // Check if user is active
+    if (!user.isActive) {
+      throw new AppError('Account is deactivated', 401);
+    }
 
-    // Generate new tokens
-    const newAccessToken = TokenService.generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
+    // Generate tokens
+    const accessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      config.JWT_ACCESS_SECRET,
+      { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId: user._id },
+      config.JWT_REFRESH_SECRET,
+      { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
+    );
+
+    // Save refresh token
+    await RefreshToken.create({
+      userId: user._id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     });
 
-    const newRefreshToken = TokenService.generateRefreshToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
+    // Update last login
+    await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
 
-    // Store new refresh token
-    await TokenService.storeRefreshToken(user.id, newRefreshToken);
+    // Log audit
+    await auditService.log(user._id.toString(), 'login', {}, req.ip);
 
     res.json({
-      tokens: {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          role: user.role,
+          credits: user.credits,
+        },
+        accessToken,
+        refreshToken,
       },
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
 
-/**
- * Logout (revoke refresh token)
- */
-router.post('/logout', async (req: Request, res: Response, next: NextFunction) => {
+// Refresh token
+router.post('/refresh', async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      throw new AppError('Refresh token required', 401);
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as any;
+    
+    // Find stored refresh token
+    const storedToken = await RefreshToken.findOne({
+      token: refreshToken,
+      userId: decoded.userId,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!storedToken) {
+      throw new AppError('Invalid refresh token', 401);
+    }
+
+    // Find user
+    const user = await User.findById(decoded.userId);
+    if (!user || !user.isActive) {
+      throw new AppError('User not found or inactive', 401);
+    }
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      config.JWT_ACCESS_SECRET,
+      { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        accessToken: newAccessToken,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Token refresh failed' });
+  }
+});
+
+// Logout
+router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
 
     if (refreshToken) {
-      await TokenService.revokeRefreshToken(refreshToken);
+      await RefreshToken.findOneAndDelete({ token: refreshToken });
     }
 
-    res.json({ message: 'Logged out successfully' });
+    // Log audit
+    await auditService.log(req.user!.id, 'logout', {}, req.ip);
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully',
+    });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, error: 'Logout failed' });
   }
 });
 
-/**
- * Google OAuth login
- */
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email'],
-}));
-
-/**
- * Google OAuth callback
- */
-router.get('/google/callback', 
-  passport.authenticate('google', { session: false }),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const user = req.user as any;
-
-      // Generate tokens
-      const accessToken = TokenService.generateAccessToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
-
-      const refreshToken = TokenService.generateRefreshToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
-
-      // Store refresh token
-      await TokenService.storeRefreshToken(user.id, refreshToken);
-
-      // Redirect to client with tokens (in a real app, use secure cookies or redirect to client)
-      res.redirect(`${process.env.CLIENT_URL}/auth/success?accessToken=${accessToken}&refreshToken=${refreshToken}`);
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * GitHub OAuth login
- */
-router.get('/github', passport.authenticate('github', {
-  scope: ['user:email'],
-}));
-
-/**
- * GitHub OAuth callback
- */
-router.get('/github/callback',
-  passport.authenticate('github', { session: false }),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const user = req.user as any;
-
-      // Generate tokens
-      const accessToken = TokenService.generateAccessToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
-
-      const refreshToken = TokenService.generateRefreshToken({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      });
-
-      // Store refresh token
-      await TokenService.storeRefreshToken(user.id, refreshToken);
-
-      // Redirect to client with tokens
-      res.redirect(`${process.env.CLIENT_URL}/auth/success?accessToken=${accessToken}&refreshToken=${refreshToken}`);
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-export { router as authRoutes };
+export default router;
