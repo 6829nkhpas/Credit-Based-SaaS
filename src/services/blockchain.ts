@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { config } from '../config/environment';
 import { logger } from '../utils/logger';
-import { prisma } from '../db/prisma';
+import { BlockchainTransaction } from '../models';
 
 // ERC20 Token ABI (minimal)
 const ERC20_ABI = [
@@ -53,17 +53,17 @@ export class BlockchainService {
       });
 
       // Store transaction in database
-      await prisma.blockchainTransaction.create({
-        data: {
-          txHash: tx.hash,
-          fromAddr: this.masterWallet.address,
-          toAddr: burnAddress,
-          amount: amount.toString(),
-          credits,
-          userId,
-          status: 'pending',
-        },
+      const blockchainTx = new BlockchainTransaction({
+        txHash: tx.hash,
+        fromAddr: this.masterWallet.address,
+        toAddr: burnAddress,
+        amount: amount.toString(),
+        credits,
+        userId,
+        status: 'pending',
       });
+
+      await blockchainTx.save();
 
       // Wait for confirmation (optional, can be done async)
       this.confirmTransaction(tx.hash).catch((error) => {
@@ -85,15 +85,15 @@ export class BlockchainService {
       const receipt = await this.provider.waitForTransaction(txHash, 1, 300000); // 5 min timeout
       
       if (receipt) {
-        await prisma.blockchainTransaction.update({
-          where: { txHash },
-          data: {
+        await BlockchainTransaction.findOneAndUpdate(
+          { txHash },
+          {
             status: receipt.status === 1 ? 'confirmed' : 'failed',
             blockNumber: receipt.blockNumber,
             gasUsed: receipt.gasUsed.toString(),
             confirmedAt: new Date(),
-          },
-        });
+          }
+        );
 
         logger.info('Transaction confirmed', {
           txHash,
@@ -104,10 +104,10 @@ export class BlockchainService {
     } catch (error) {
       logger.error('Failed to confirm transaction', { txHash, error });
       
-      await prisma.blockchainTransaction.update({
-        where: { txHash },
-        data: { status: 'failed' },
-      });
+      await BlockchainTransaction.findOneAndUpdate(
+        { txHash },
+        { status: 'failed' }
+      );
     }
   }
 

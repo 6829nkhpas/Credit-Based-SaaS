@@ -1,7 +1,8 @@
-import { prisma } from '../db/prisma';
+import { User, AuditLog, Payment } from '../models';
 import { BlockchainService } from './blockchain';
 import { logger } from '../utils/logger';
 import { InsufficientCreditsError, NotFoundError } from '../utils/errors';
+import mongoose from 'mongoose';
 
 export enum ActionType {
   UPLOAD_FILE = 'UPLOAD_FILE',
@@ -48,10 +49,7 @@ export class CreditService {
     }
 
     // Get user
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, credits: true, email: true },
-    });
+    const user = await User.findById(userId).select('id credits email');
 
     if (!user) {
       throw new NotFoundError('User not found');
@@ -64,32 +62,39 @@ export class CreditService {
       );
     }
 
-    // Start transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Deduct credits
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: { credits: { decrement: cost } },
-      });
-
-      // Process blockchain transaction
-      let txHash: string | undefined;
-      try {
-        txHash = await this.blockchainService.transferCredits(userId, cost);
-      } catch (error) {
-        logger.error('Blockchain transaction failed, but credits already deducted', {
+    // Start MongoDB transaction
+    const session = await mongoose.startSession();
+    
+    try {
+      const result = await session.withTransaction(async () => {
+        // Deduct credits
+        const updatedUser = await User.findByIdAndUpdate(
           userId,
-          action,
-          cost,
-          error,
-        });
-        // Continue without blockchain transaction for now
-        // In production, you might want to implement retry logic
-      }
+          { $inc: { credits: -cost } },
+          { new: true, session }
+        );
 
-      // Create audit log
-      await tx.auditLog.create({
-        data: {
+        if (!updatedUser) {
+          throw new NotFoundError('User not found during update');
+        }
+
+        // Process blockchain transaction
+        let txHash: string | undefined;
+        try {
+          txHash = await this.blockchainService.transferCredits(userId, cost);
+        } catch (error) {
+          logger.error('Blockchain transaction failed, but credits already deducted', {
+            userId,
+            action,
+            cost,
+            error,
+          });
+          // Continue without blockchain transaction for now
+          // In production, you might want to implement retry logic
+        }
+
+        // Create audit log
+        const auditLog = new AuditLog({
           userId,
           action,
           cost,
@@ -98,25 +103,29 @@ export class CreditService {
           metadata,
           ipAddress,
           userAgent,
-        },
+        });
+
+        await auditLog.save({ session });
+
+        return {
+          success: true,
+          remainingCredits: updatedUser.credits,
+          txHash,
+        };
       });
 
-      return {
-        success: true,
-        remainingCredits: updatedUser.credits,
-        txHash,
-      };
-    });
+      logger.info('Credits deducted successfully', {
+        userId,
+        action,
+        cost,
+        remainingCredits: result.remainingCredits,
+        txHash: result.txHash,
+      });
 
-    logger.info('Credits deducted successfully', {
-      userId,
-      action,
-      cost,
-      remainingCredits: result.remainingCredits,
-      txHash: result.txHash,
-    });
-
-    return result;
+      return result;
+    } finally {
+      await session.endSession();
+    }
   }
 
   /**
@@ -128,33 +137,36 @@ export class CreditService {
     adminId: string,
     reason?: string
   ): Promise<{ success: boolean; newBalance: number }> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await User.findById(userId);
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: { credits: { increment: amount } },
-    });
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $inc: { credits: amount } },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      throw new NotFoundError('Failed to update user credits');
+    }
 
     // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        userId: adminId,
-        action: ActionType.CREDIT_ADMIN_ADD,
-        cost: -amount, // Negative cost indicates credit addition
-        creditsAfter: updatedUser.credits,
-        metadata: {
-          targetUserId: userId,
-          reason,
-          amount,
-        },
+    const auditLog = new AuditLog({
+      userId: adminId,
+      action: ActionType.CREDIT_ADMIN_ADD,
+      cost: -amount, // Negative cost indicates credit addition
+      creditsAfter: updatedUser.credits,
+      metadata: {
+        targetUserId: userId,
+        reason,
+        amount,
       },
     });
+
+    await auditLog.save();
 
     logger.info('Credits added by admin', {
       userId,
@@ -180,24 +192,29 @@ export class CreditService {
     paymentId: string,
     provider: string
   ): Promise<{ success: boolean; newBalance: number }> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await User.findById(userId);
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Add credits
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: { credits: { increment: credits } },
-      });
+    const session = await mongoose.startSession();
 
-      // Create payment record
-      await tx.payment.create({
-        data: {
+    try {
+      const result = await session.withTransaction(async () => {
+        // Add credits
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { $inc: { credits: credits } },
+          { new: true, session }
+        );
+
+        if (!updatedUser) {
+          throw new NotFoundError('User not found during update');
+        }
+
+        // Create payment record
+        const payment = new Payment({
           userId,
           amount,
           credits,
@@ -205,12 +222,12 @@ export class CreditService {
           transactionId: paymentId,
           status: 'completed',
           completedAt: new Date(),
-        },
-      });
+        });
 
-      // Create audit log
-      await tx.auditLog.create({
-        data: {
+        await payment.save({ session });
+
+        // Create audit log
+        const auditLog = new AuditLog({
           userId,
           action: ActionType.CREDIT_PURCHASE,
           cost: -credits, // Negative cost indicates credit addition
@@ -220,35 +237,36 @@ export class CreditService {
             provider,
             paymentId,
           },
-        },
+        });
+
+        await auditLog.save({ session });
+
+        return {
+          success: true,
+          newBalance: updatedUser.credits,
+        };
       });
 
-      return {
-        success: true,
-        newBalance: updatedUser.credits,
-      };
-    });
+      logger.info('Credits purchased successfully', {
+        userId,
+        amount,
+        credits,
+        paymentId,
+        provider,
+        newBalance: result.newBalance,
+      });
 
-    logger.info('Credits purchased successfully', {
-      userId,
-      amount,
-      credits,
-      paymentId,
-      provider,
-      newBalance: result.newBalance,
-    });
-
-    return result;
+      return result;
+    } finally {
+      await session.endSession();
+    }
   }
 
   /**
-   * Get user credit balance
+   * Get user's current credit balance
    */
-  async getCreditBalance(userId: string): Promise<number> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { credits: true },
-    });
+  async getBalance(userId: string): Promise<number> {
+    const user = await User.findById(userId).select('credits');
 
     if (!user) {
       throw new NotFoundError('User not found');
@@ -260,86 +278,153 @@ export class CreditService {
   /**
    * Get credit usage history
    */
-  async getCreditHistory(
+  async getUsageHistory(
     userId: string,
-    limit: number = 50,
-    offset: number = 0
-  ): Promise<Array<{
-    id: string;
-    action: string;
-    cost: number;
-    creditsAfter: number;
-    txHash: string | null;
-    createdAt: Date;
-    metadata: any;
-  }>> {
-    const history = await prisma.auditLog.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      skip: offset,
-      select: {
-        id: true,
-        action: true,
-        cost: true,
-        creditsAfter: true,
-        txHash: true,
-        createdAt: true,
-        metadata: true,
-      },
-    });
-
-    return history;
-  }
-
-  /**
-   * Get credit statistics
-   */
-  async getCreditStats(userId: string): Promise<{
-    totalSpent: number;
-    totalPurchased: number;
-    currentBalance: number;
-    transactionCount: number;
+    limit = 50,
+    offset = 0
+  ): Promise<{
+    history: any[];
+    total: number;
+    summary: {
+      totalSpent: number;
+      totalPurchased: number;
+      currentBalance: number;
+    };
   }> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { credits: true },
-    });
+    const user = await User.findById(userId).select('credits');
 
     if (!user) {
       throw new NotFoundError('User not found');
     }
 
-    const stats = await prisma.auditLog.aggregate({
-      where: { userId },
-      _sum: {
-        cost: true,
-      },
-      _count: {
-        id: true,
-      },
-    });
+    // Get audit logs with pagination
+    const [history, total] = await Promise.all([
+      AuditLog.find({ userId })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .skip(offset)
+        .lean(),
+      AuditLog.countDocuments({ userId }),
+    ]);
 
-    const purchases = await prisma.auditLog.aggregate({
-      where: {
-        userId,
-        action: {
-          in: [ActionType.CREDIT_PURCHASE, ActionType.CREDIT_ADMIN_ADD],
-        },
-      },
-      _sum: {
-        cost: true,
-      },
-    });
+    // Calculate summary statistics
+    const [totalSpentResult, totalPurchasedResult] = await Promise.all([
+      AuditLog.aggregate([
+        { $match: { userId, cost: { $gt: 0 } } },
+        { $group: { _id: null, total: { $sum: '$cost' } } },
+      ]),
+      AuditLog.aggregate([
+        { $match: { userId, cost: { $lt: 0 } } },
+        { $group: { _id: null, total: { $sum: { $abs: '$cost' } } } },
+      ]),
+    ]);
 
-    const totalSpent = Math.abs(stats._sum.cost || 0) - Math.abs(purchases._sum.cost || 0);
-    const totalPurchased = Math.abs(purchases._sum.cost || 0);
+    const totalSpent = totalSpentResult[0]?.total || 0;
+    const totalPurchased = totalPurchasedResult[0]?.total || 0;
 
     return {
-      totalSpent,
-      totalPurchased,
-      currentBalance: user.credits,
-      transactionCount: stats._count.id || 0,
+      history,
+      total,
+      summary: {
+        totalSpent,
+        totalPurchased,
+        currentBalance: user.credits,
+      },
     };
+  }
+
+  /**
+   * Get detailed usage statistics
+   */
+  async getUsageStatistics(userId: string): Promise<{
+    totalCreditsUsed: number;
+    creditsPurchased: number;
+    currentBalance: number;
+    actionBreakdown: Record<string, { count: number; totalCost: number }>;
+  }> {
+    const user = await User.findById(userId).select('credits');
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    // Get aggregated statistics
+    const [usageStats, purchaseStats, actionBreakdown] = await Promise.all([
+      AuditLog.aggregate([
+        { $match: { userId, cost: { $gt: 0 } } },
+        { $group: { _id: null, total: { $sum: '$cost' } } },
+      ]),
+      AuditLog.aggregate([
+        { $match: { userId, cost: { $lt: 0 } } },
+        { $group: { _id: null, total: { $sum: { $abs: '$cost' } } } },
+      ]),
+      AuditLog.aggregate([
+        { $match: { userId, cost: { $gt: 0 } } },
+        {
+          $group: {
+            _id: '$action',
+            count: { $sum: 1 },
+            totalCost: { $sum: '$cost' },
+          },
+        },
+      ]),
+    ]);
+
+    const totalCreditsUsed = usageStats[0]?.total || 0;
+    const creditsPurchased = purchaseStats[0]?.total || 0;
+
+    // Format action breakdown
+    const actionBreakdownFormatted: Record<string, { count: number; totalCost: number }> = {};
+    actionBreakdown.forEach((item) => {
+      actionBreakdownFormatted[item._id] = {
+        count: item.count,
+        totalCost: item.totalCost,
+      };
+    });
+
+    return {
+      totalCreditsUsed,
+      creditsPurchased,
+      currentBalance: user.credits,
+      actionBreakdown: actionBreakdownFormatted,
+    };
+  }
+
+  /**
+   * Get user's current credit balance (alias for getBalance)
+   */
+  async getCreditBalance(userId: string): Promise<number> {
+    return this.getBalance(userId);
+  }
+
+  /**
+   * Get credit usage history (alias for getUsageHistory)
+   */
+  async getCreditHistory(
+    userId: string,
+    limit = 50,
+    offset = 0
+  ): Promise<{
+    history: any[];
+    total: number;
+    summary: {
+      totalSpent: number;
+      totalPurchased: number;
+      currentBalance: number;
+    };
+  }> {
+    return this.getUsageHistory(userId, limit, offset);
+  }
+
+  /**
+   * Get detailed usage statistics (alias for getUsageStatistics)
+   */
+  async getCreditStats(userId: string): Promise<{
+    totalCreditsUsed: number;
+    creditsPurchased: number;
+    currentBalance: number;
+    actionBreakdown: Record<string, { count: number; totalCost: number }>;
+  }> {
+    return this.getUsageStatistics(userId);
   }
 }

@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import passport from 'passport';
 import { config } from './config/environment';
 import { logger } from './utils/logger';
+import { database } from './db/connection';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { authRoutes } from './routes/auth';
@@ -84,8 +85,37 @@ app.use(errorHandler);
 
 const PORT = config.PORT || 3000;
 
-app.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT} in ${config.NODE_ENV} mode`);
+// Initialize database connection and start server
+async function startServer() {
+  try {
+    // Connect to MongoDB
+    await database.connect();
+    logger.info('✅ MongoDB connected successfully');
+
+    // Start server
+    app.listen(PORT, () => {
+      logger.info(`🚀 Server running on port ${PORT} in ${config.NODE_ENV} mode`);
+    });
+  } catch (error) {
+    logger.error('❌ Failed to start server', { error });
+    process.exit(1);
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGINT', async () => {
+  logger.info('Received SIGINT signal, shutting down gracefully...');
+  await database.disconnect();
+  process.exit(0);
 });
+
+process.on('SIGTERM', async () => {
+  logger.info('Received SIGTERM signal, shutting down gracefully...');
+  await database.disconnect();
+  process.exit(0);
+});
+
+// Start the server
+startServer();
 
 export default app;

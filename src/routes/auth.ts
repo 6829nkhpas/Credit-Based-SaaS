@@ -3,7 +3,7 @@ import passport from 'passport';
 import { validate, authSchemas } from '../middleware/validation';
 import { PasswordService } from '../utils/password';
 import { TokenService } from '../utils/token';
-import { prisma } from '../db/prisma';
+import { User, RefreshToken } from '../models';
 import { AuthenticationError, ConflictError, NotFoundError, ValidationError } from '../utils/errors';
 import { logger } from '../utils/logger';
 

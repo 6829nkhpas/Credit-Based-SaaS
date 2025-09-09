@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import ms from 'ms';
 import { config } from '../config/environment';
-import { prisma } from '../db/prisma';
+import { RefreshToken } from '../models';
 import { AuthenticationError } from './errors';
 
 export interface JwtPayload {
@@ -76,14 +76,13 @@ export class TokenService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    await prisma.refreshToken.create({
-      data: {
-        id: uuidv4(),
-        token,
-        userId,
-        expiresAt,
-      },
+    const refreshToken = new RefreshToken({
+      token,
+      userId,
+      expiresAt,
     });
+
+    await refreshToken.save();
   }
 
   /**

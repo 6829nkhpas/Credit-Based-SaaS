@@ -8,6 +8,7 @@ export const config = {
   
   // Database
   DATABASE_URL: process.env.DATABASE_URL || '',
+  MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/credit_saas',
   
   // JWT
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET || 'fallback-secret',
