@@ -104,10 +104,14 @@ export const initializePassport = () => {
             }
 
             // Update last login
-            await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
+            if (user) {
+              await User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() });
 
-            logger.info('GitHub OAuth login successful', { userId: user._id, email: user.email });
-            return done(null, user);
+              logger.info('GitHub OAuth login successful', { userId: user._id, email: user.email });
+              return done(null, user);
+            } else {
+              return done(new Error('User creation failed'));
+            }
           } catch (error) {
             logger.error('GitHub OAuth error', { error });
             return done(error);
@@ -129,7 +133,14 @@ export const initializePassport = () => {
           const user = await User.findById(payload.userId).select('_id email firstName role isActive');
 
           if (user && user.isActive) {
-            return done(null, user);
+            const expressUser = {
+              id: (user._id as any).toString(),
+              email: user.email,
+              role: user.role,
+              name: user.firstName || '',
+              isActive: user.isActive
+            };
+            return done(null, expressUser);
           }
 
           return done(null, false);

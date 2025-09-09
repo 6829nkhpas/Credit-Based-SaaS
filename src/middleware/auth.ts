@@ -1,31 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import { User, ApiKey } from '../models';
-import { AuthenticationError } from '../utils/errors';
-
-interface JwtPayload {
-  userId: string;
-  role: string;
-}
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-        email: string;
-        role: string;
-        name: string;
-        isActive: boolean;
-      };
-      apiKey?: {
-        id: string;
-        scope: string;
-        userId: string;
-      };
-    }
-  }
-}
+import { AuthenticationError, AuthorizationError } from '../utils/errors';
+import { config } from '../config/environment';
 
 /**
  * JWT Authentication Middleware
@@ -45,20 +22,20 @@ export const authenticate = async (
     const token = authHeader.substring(7);
     
     // Verify JWT token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+    const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET as string) as JwtPayload;
     
     // Find user in database
-    const user = await User.findById(decoded.userId).select('id email role name isActive');
+    const user = await User.findById(decoded.userId).select('_id email role firstName isActive');
 
     if (!user || !user.isActive) {
       throw new AuthenticationError('Invalid or inactive user');
     }
 
     req.user = {
-      id: user.id,
+      id: (user._id as any).toString(),
       email: user.email,
       role: user.role,
-      name: user.name,
+      name: user.firstName || '',
       isActive: user.isActive,
     };
 
@@ -100,15 +77,15 @@ export const authenticateApiKey = async (
 
     // Add API key info to request
     req.apiKey = {
-      id: key._id.toString(),
-      scope: key.scope,
-      userId: key.userId._id.toString(),
+      id: (key._id as any).toString(),
+      scope: (key as any).scope,
+      userId: (key as any).userId.toString(),
     };
 
     // Add user info to request
-    const user = key.userId as any;
+    const user = (key as any).userId;
     req.user = {
-      id: user._id.toString(),
+      id: (user._id as any).toString(),
       email: user.email,
       role: user.role,
       name: user.name,

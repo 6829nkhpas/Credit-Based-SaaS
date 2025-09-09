@@ -34,13 +34,13 @@ router.post('/register', async (req: Request, res: Response) => {
     // Generate tokens
     const accessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET!,
+      config.JWT_ACCESS_SECRET as string,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 
     const refreshToken = jwt.sign(
       { userId: user._id },
-      config.JWT_REFRESH_SECRET!,
+      config.JWT_REFRESH_SECRET as string,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
@@ -82,7 +82,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    const isValidPassword = await bcrypt.compare(password, user.password!);
     if (!isValidPassword) {
       throw new AppError('Invalid credentials', 401);
     }
@@ -95,13 +95,13 @@ router.post('/login', async (req: Request, res: Response) => {
     // Generate tokens
     const accessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET!,
+      config.JWT_ACCESS_SECRET as string,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 
     const refreshToken = jwt.sign(
       { userId: user._id },
-      config.JWT_REFRESH_SECRET!,
+      config.JWT_REFRESH_SECRET as string,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
@@ -169,7 +169,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     // Generate new access token
     const newAccessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET!,
+      config.JWT_ACCESS_SECRET as string,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 

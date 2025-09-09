@@ -1,10 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
+import Joi from 'joi';
 
-// Simple validation request helper
-export const validateRequest = (req: Request, res: Response, next: NextFunction) => {
-  // Basic validation - can be enhanced
-  next();
-};
+// Custom error for validation
+class ValidationError extends Error {
+  details: string[];
+  constructor(message: string, details: string[]) {
+    super(message);
+    this.details = details;
+  }
+}
+
+// General validation middleware factory
+export function validate(schema: any) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const errors: string[] = [];
+
+    // Validate body
+    if (schema.body) {
+      const { error } = schema.body.validate(req.body);
+      if (error) {
+        errors.push(...error.details.map((detail: { message: string }) => detail.message));
       }
     }
 
@@ -12,7 +27,7 @@ export const validateRequest = (req: Request, res: Response, next: NextFunction)
     if (schema.params) {
       const { error } = schema.params.validate(req.params);
       if (error) {
-        errors.push(...error.details.map(detail => detail.message));
+        errors.push(...error.details.map((detail: { message: string }) => detail.message));
       }
     }
 
@@ -20,17 +35,17 @@ export const validateRequest = (req: Request, res: Response, next: NextFunction)
     if (schema.query) {
       const { error } = schema.query.validate(req.query);
       if (error) {
-        errors.push(...error.details.map(detail => detail.message));
+        errors.push(...error.details.map((detail: { message: string }) => detail.message));
       }
     }
 
     if (errors.length > 0) {
-      throw new ValidationError('Validation failed', errors);
+      return next(new ValidationError('Validation failed', errors));
     }
 
     next();
   };
-};
+}
 
 // Common validation schemas
 export const authSchemas = {

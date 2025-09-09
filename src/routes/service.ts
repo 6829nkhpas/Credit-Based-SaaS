@@ -135,7 +135,7 @@ router.get('/api-key', authenticateApiKey, async (req: Request, res: Response) =
       data: {
         id: apiKey._id,
         name: apiKey.name,
-        scope: apiKey.scope,
+        scope: (apiKey as any).scope,
         lastUsedAt: apiKey.lastUsedAt,
         expiresAt: apiKey.expiresAt,
         createdAt: apiKey.createdAt,

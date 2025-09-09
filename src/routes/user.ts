@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { User, File, Report } from '../models';
 import { authenticate } from '../middleware/auth';
-import { validateRequest } from '../middleware/validation';
+import { validate } from '../middleware/validation';
 import { creditService, ActionType } from '../services/credit';
 import { auditService } from '../services/audit';
 import { AppError } from '../utils/errors';

@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { User, RefreshToken } from '../models';
 import { authenticate } from '../middleware/auth';
 import { auditService } from '../services/audit';
 import { AppError } from '../utils/errors';
 import { config } from '../config/environment';
+import { signJWT } from '../utils/jwt';
 
 const router = Router();
 
@@ -32,15 +32,22 @@ router.post('/register', async (req: Request, res: Response) => {
     });
 
     // Generate tokens
-    const accessToken = jwt.sign(
+    const jwtAccessSecret = config.JWT_ACCESS_SECRET;
+    const jwtRefreshSecret = config.JWT_REFRESH_SECRET;
+    
+    if (!jwtAccessSecret || !jwtRefreshSecret) {
+      throw new AppError('JWT secrets not configured', 500);
+    }
+    
+    const accessToken = signJWT(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET!,
+      jwtAccessSecret,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 
-    const refreshToken = jwt.sign(
+    const refreshToken = signJWT(
       { userId: user._id },
-      config.JWT_REFRESH_SECRET!,
+      jwtRefreshSecret,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
@@ -82,7 +89,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    const isValidPassword = await bcrypt.compare(password, user.password!);
     if (!isValidPassword) {
       throw new AppError('Invalid credentials', 401);
     }
@@ -95,13 +102,13 @@ router.post('/login', async (req: Request, res: Response) => {
     // Generate tokens
     const accessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET!,
+      config.JWT_ACCESS_SECRET as string,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 
     const refreshToken = jwt.sign(
       { userId: user._id },
-      config.JWT_REFRESH_SECRET!,
+      config.JWT_REFRESH_SECRET as string,
       { expiresIn: config.JWT_REFRESH_EXPIRES_IN }
     );
 
@@ -169,7 +176,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     // Generate new access token
     const newAccessToken = jwt.sign(
       { userId: user._id, role: user.role },
-      config.JWT_ACCESS_SECRET!,
+      config.JWT_ACCESS_SECRET as string,
       { expiresIn: config.JWT_ACCESS_EXPIRES_IN }
     );
 

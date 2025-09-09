@@ -7,11 +7,13 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
+    "dev:simple": "npx tsx src/server-simple.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "seed": "npx tsx src/db/seed.ts"
+    "seed": "npx tsx src/db/seed.ts",
+    "token:help": "npx tsx src/scripts/get-token-address.ts"
   },
   "keywords": [
     "saas",
@@ -53,6 +55,7 @@
     "passport-jwt": "^4.0.1",
     "razorpay": "^2.9.2",
     "stripe": "^12.18.0",
+    "ts-node": "^10.9.2",
     "uuid": "^9.0.0",
     "winston": "^3.10.0"
   },

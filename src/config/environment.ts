@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ path: 'everware.env' });
 
 export const config = {
   NODE_ENV: process.env.NODE_ENV || 'development',
