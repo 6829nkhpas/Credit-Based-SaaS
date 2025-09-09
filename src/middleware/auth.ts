@@ -70,7 +70,7 @@ export const authenticateApiKey = async (
     }
 
     // Find API key in database
-    const key = await prisma.apiKey.findUnique({
+    const key = await ApiKey.findUnique({
       where: { key: apiKey },
       include: {
         user: {
@@ -95,7 +95,7 @@ export const authenticateApiKey = async (
     }
 
     // Update last used timestamp
-    await prisma.apiKey.update({
+    await ApiKey.update({
       where: { id: key.id },
       data: { lastUsedAt: new Date() },
     });

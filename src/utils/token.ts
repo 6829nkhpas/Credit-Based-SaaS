@@ -89,7 +89,7 @@ export class TokenService {
    * Revoke refresh token
    */
   static async revokeRefreshToken(token: string): Promise<void> {
-    await RefreshToken.updateMany({
+    await RefreshToken.deleteMany({
       where: { token },
       data: { revoked: true },
     });
@@ -99,7 +99,7 @@ export class TokenService {
    * Revoke all user tokens
    */
   static async revokeAllUserTokens(userId: string): Promise<void> {
-    await RefreshToken.updateMany({
+    await RefreshToken.deleteMany({
       where: { userId },
       data: { revoked: true },
     });

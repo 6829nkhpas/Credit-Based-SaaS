@@ -24,39 +24,38 @@ export const initializePassport = () => {
             }
 
             // Check if user exists
-            let user = await prisma.user.findUnique({
-              where: { email },
-            });
+            let user = await User.findOne({ email });
 
             if (user) {
               // Update Google ID if not set
               if (!user.googleId) {
-                user = await prisma.user.update({
-                  where: { id: user.id },
-                  data: { googleId: profile.id },
-                });
+                user = await User.findByIdAndUpdate(
+                  user.id,
+                  { googleId: profile.id },
+                  { new: true }
+                );
               }
             } else {
               // Create new user
-              user = await prisma.user.create({
-                data: {
-                  email,
-                  name: profile.displayName || 'Unknown',
-                  googleId: profile.id,
-                  emailVerified: true, // Google emails are pre-verified
-                  credits: 50, // Initial credits
-                },
+              user = new User({
+                email,
+                firstName: profile.displayName || 'Unknown',
+                googleId: profile.id,
+                isEmailVerified: true, // Google emails are pre-verified
+                credits: 50, // Initial credits
               });
+              await user.save();
             }
 
             // Update last login
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { lastLoginAt: new Date() },
-            });
-
-            logger.info('Google OAuth login successful', { userId: user.id, email: user.email });
-            return done(null, user);
+            if (user) {
+              await User.findByIdAndUpdate(user.id, { lastLoginAt: new Date() });
+              
+              logger.info('Google OAuth login successful', { userId: user.id, email: user.email });
+              return done(null, user);
+            } else {
+              return done(new Error('Failed to create or find user'));
+            }
           } catch (error) {
             logger.error('Google OAuth error', { error });
             return done(error);
